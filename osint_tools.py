@@ -26,30 +26,26 @@ def ip_lookup(ip):
 
 # Email breach lookup using HaveIBeenPwned
 def email_breach_check(email):
-    api_key = os.getenv("HIBP_API_KEY")
-    if not api_key:
-        return "⚠️ Email check disabled: HIBP API key not found in .env."
-
     try:
-        headers = {
-            "hibp-api-key": api_key,
-            "User-Agent": "OSINT-Bot"  # Required by HIBP
-        }
+        res = requests.get(f"https://breachdirectory.org/api/{email}", timeout=5)
+        data = res.json()
 
-        url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}"
-        res = requests.get(url, headers=headers, timeout=5)
+        if data.get("success") == False:
+            return "❌ Error or invalid email."
 
-        if res.status_code == 404:
-            return "✅ No breaches found for this email!"
-        elif res.status_code == 200:
-            breaches = [b.get('Name') for b in res.json()]
-            return f"⚠️ Breaches found ({len(breaches)}):\n" + "\n".join(breaches)
-        elif res.status_code == 401:
-            return "❌ Unauthorized: Invalid HIBP API key."
-        elif res.status_code == 429:
-            return "⏳ Rate limited. Please try again later."
-        else:
-            return f"❌ Unexpected error: HTTP {res.status_code}"
+        if data.get("found") == False:
+            return "✅ No breaches found for this email."
+
+        breach_list = data.get("result", [])
+        breach_names = [b.get("source", "Unknown") for b in breach_list]
+
+        if not breach_names:
+            return "⚠️ Breaches found, but details not available."
+
+        return (
+            f"⚠️ Breaches found ({len(breach_names)}):\n" +
+            "\n".join(set(breach_names))
+        )
     except Exception as e:
         return f"❌ Error checking email: {str(e)}"
 
